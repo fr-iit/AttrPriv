@@ -32,13 +32,13 @@ class NpEncoder(json.JSONEncoder):
             return super(NpEncoder, self).default(obj)
 
 
-def blurMe():
+def blurMe(dataset):
 
     sample_mode = list(['random', 'sampled', 'greedy'])[2]
-    rating_mode = list(['highest', 'avg', 'pred'])[1]
-    p = 0.01
+    rating_mode = list(['highest', 'avg', 'pred'])[2]
+    p = 0.05
     notice_factor = 2 #determines the maximum number of ratings allowed for obfuscation.
-    dataset = ['100k', '1m', 'yahoo'][0]
+    # dataset = ['100k', '1m', 'yahoo'][0]
 
     if dataset == '100k':
         X = DL.load_user_item_matrix_100k()
@@ -155,7 +155,8 @@ def blurMe():
     # Save the obfuscated data to a file
     output_file = 'ml-' + dataset + '/BlurMe/'
     print(output_file)
-    with open(output_file + "Blur_" + rating_mode + "_" + sample_mode + "_" + str(p) + "_" + str(notice_factor) + ".dat", 'w') as f:
+    print(output_file + "Blur_" + rating_mode + "_" + sample_mode + "_" + str(p) + ".dat")
+    with open(output_file + "Blur_" + rating_mode + "_" + sample_mode + "_" + str(p) + ".dat", 'w') as f:
         for index_user, user in enumerate(X_obf):
             for index_movie, rating in enumerate(user):
                 if rating > 0:
@@ -564,14 +565,14 @@ def Personalized_list_User(dataset):
 
 """PerBlur without removal strategy function for obfuscating the user-item matrix"""
 
-def PerBlur_No_Removal():
+def PerBlur_No_Removal(dataset):
 
     sample_mode = list(['random', 'sampled', 'greedy'])[2]
-    rating_mode = list(['highest', 'avg', 'pred'])[1]
+    rating_mode = list(['highest', 'avg', 'pred'])[2]
     top = 100
-    p = 0.01
+    p = 0.05
     notice_factor = 2
-    dataset = ['100k', '1m', 'yahoo'][2]
+    # dataset = ['100k', '1m', 'yahoo'][2]
 
     if dataset == '100k':
         X = DL.load_user_item_matrix_100k()
@@ -597,8 +598,12 @@ def PerBlur_No_Removal():
     max_count = initial_count * notice_factor
 
     # 1: get the set of most correlated movies, L_f and L_m:
-    with open('ml-'+dataset+'/test_NN_TrainingSet_AllUsers_Neighbors_Weight_K_30_item_choice_Top100IndicativeItems_noRemoval.json') as json_file:
+    with open('ml-'+dataset+'/NN_TrainingSet_AllUsers_Neighbors_Weight_K_30_item_choice_Top100IndicativeItems_noRemoval.json') as json_file:
         item_choice = json.load(json_file)
+
+    # with open('ml-' + dataset + '/Dist/combine_personalized_recommendations_top100.json') as json_file:
+    #     item_choice = json.load(json_file)
+
 
     # Now, where we have the two lists, we can start obfuscating the data:
     X_obf = np.copy(X)
@@ -631,9 +636,19 @@ def PerBlur_No_Removal():
             if rating_count > max_count[movie_id]:
                 continue
 
-            if X_obf[index, movie_id] == 0:# and X_test [index, int(movie_id) ] == 0:
-                X_obf[index, movie_id] =  avg_ratings[int(movie_id)] # X_filled[index, movie_id] #  #
-                print(f"obf: {X_obf[index, movie_id]}, movie: {movie_id}")
+            # if X_obf[index, movie_id] == 0:# and X_test [index, int(movie_id) ] == 0:
+            #     X_obf[index, movie_id] =  avg_ratings[int(movie_id)] # X_filled[index, movie_id] #  #
+            #     print(f"obf: {X_obf[index, movie_id]}, movie: {movie_id}")
+
+            # set rating of the selected movie
+            if X_obf[index, movie_id] == 0:# and X_test [index, int(movie_id) - 1] ==0:
+                if rating_mode == 'higest':
+                    X_obf[index, movie_id] = 5
+                elif rating_mode == 'avg':
+                    X_obf[index, movie_id] = avg_ratings[movie_id] # avg_ratings[int(index)]
+                elif rating_mode == 'pred':
+                    X_obf[index, movie_id] = X_filled[index, movie_id]
+
                 added += 1
             safety_counter += 1
         total_added += added
@@ -642,7 +657,8 @@ def PerBlur_No_Removal():
     # Save the obfuscated data to a file
     output_file = 'ml-'+dataset+'/PerBlur/'
     print(output_file)
-    with open(output_file + "PerBlur_" + rating_mode + "_" + sample_mode + "_" + str(p) + "_" + str(notice_factor) + ".dat", 'w') as f:
+    print(output_file + "PerBlur_" + rating_mode + "_" + sample_mode + "_" + str(p) + ".dat")
+    with open(output_file + "PerBlur_" + rating_mode + "_" + sample_mode + "_" + str(p) + ".dat", 'w') as f:
         for index_user, user in enumerate(X_obf):
             for index_movie, rating in enumerate(user):
                 if rating > 0:
@@ -655,16 +671,16 @@ def PerBlur_No_Removal():
 """PerBlur with removal function for obfuscatibg the user-item matrix"""
 
 
-def PerBlur():
+def PerBlur(dataset):
 
     sample_mode = list(['random', 'sampled', 'greedy'])[2]
-    rating_mode = list(['highest', 'avg', 'pred'])[1]
+    rating_mode = list(['highest', 'avg', 'pred'])[2]
     removal_mode = list(['random', 'strategic'])[1]
     top = 100
     p = 0.05
     notice_factor = 2
 
-    dataset = ['100k', '1m', 'yahoo'][2]
+    # dataset = ['100k', '1m', 'yahoo'][2]
 
     if dataset == '100k':
         X = DL.load_user_item_matrix_100k()
@@ -703,8 +719,11 @@ def PerBlur():
         initial_count[item_id] = len(ratings)
     max_count = initial_count * notice_factor
     # 1: get the set of most correlated movies, L_f and L_m:
+
     with open('ml-'+dataset+'/NN_TrainingSet_AllUsers_Neighbors_Weight_K_30_item_choice_Top100IndicativeItems_noRemoval.json') as json_file:
         item_choice = json.load(json_file)
+    # with open('ml-' + dataset + '/Dist/combine_personalized_recommendations_top100.json') as json_file:
+    #     item_choice = json.load(json_file)
 
     # Now, where we have the two lists, we can start obfuscating the data:
     X_obf = np.copy(X)
@@ -736,9 +755,20 @@ def PerBlur():
             if rating_count > max_count[movie_id]:
                 continue
 
-            if X_obf[index, movie_id] == 0:# and X_test [index, int(movie_id) ] == 0:
+            # if X_obf[index, movie_id] == 0:# and X_test [index, int(movie_id) ] == 0:
+            #
+            #     X_obf[index, movie_id] =  avg_ratings[int(movie_id)] # X_filled[index, movie_id]
 
-                X_obf[index, movie_id] =  avg_ratings[int(movie_id)] # X_filled[index, movie_id]
+            # set rating of the selected movie
+            if X_obf[index, movie_id] == 0:# and X_test [index, int(movie_id) - 1] ==0:
+                if rating_mode == 'higest':
+                    X_obf[index, movie_id] = 5
+                elif rating_mode == 'avg':
+                    X_obf[index, movie_id] = avg_ratings[movie_id] # avg_ratings[int(index)]
+                elif rating_mode == 'pred':
+                    X_obf[index, movie_id] = X_filled[index, movie_id]
+
+
                 added += 1
             safety_counter += 1
         total_added += added
@@ -812,7 +842,8 @@ def PerBlur():
     # Save the obfuscated data to a file
     output_file = 'ml-'+dataset+'/PerBlur/'
     print(output_file)
-    with open(output_file + "PerBlurwithRemoval_" + rating_mode + "_" + sample_mode + "_" + str(p) + ".dat", 'w') as f:
+    print(output_file + "PerBlur_Removal_" + rating_mode + "_" + sample_mode + "_" + str(p) + ".dat")
+    with open(output_file + "PerBlur_Removal_" + rating_mode + "_" + sample_mode + "_" + str(p) + ".dat", 'w') as f:
         for index_user, user in enumerate(X_obf):
             for index_movie, rating in enumerate(user):
                 if rating > 0:
@@ -823,13 +854,13 @@ def PerBlur():
 
 # --- Proposed Approach --- #
 
-def SmartBlur():
+def SmartBlur(dataset):
 
     sample_mode = list(['random', 'sampled', 'greedy'])[2]
-    rating_mode = list(['highest', 'avg', 'pred'])[1]
-    p = 0.1
+    rating_mode = list(['highest', 'avg', 'pred'])[2]
+    p = 0.05
     notice_factor = 2
-    dataset = ['100k', '1m', 'yahoo'][2]
+    # dataset = ['100k', '1m', 'yahoo'][2]
 
     if dataset == '100k':
         X = DL.load_user_item_matrix_100k()
@@ -920,8 +951,18 @@ def SmartBlur():
             if rating_count > max_count[movie_id]:
                 continue
 
-            if X_obf[index, movie_id] == 0:
-                X_obf[index, movie_id] = avg_ratings[movie_id]  # Assign average rating
+            # if X_obf[index, movie_id] == 0:
+            #     X_obf[index, movie_id] = avg_ratings[movie_id]  # Assign average rating
+
+            # set rating of the selected movie
+            if X_obf[index, movie_id] == 0:# and X_test [index, int(movie_id) - 1] ==0:
+                if rating_mode == 'higest':
+                    X_obf[index, movie_id] = 5
+                elif rating_mode == 'avg':
+                    X_obf[index, movie_id] = avg_ratings[movie_id] # avg_ratings[int(index)]
+                elif rating_mode == 'pred':
+                    X_obf[index, movie_id] = X_filled[index, movie_id]
+
                 print(f"Added rating (no constraints): {X_obf[index, movie_id]} for movie: {movie_id}")
                 added1 += 1
 
@@ -954,8 +995,18 @@ def SmartBlur():
             if rating_count > max_count[movie_id]:
                 continue
 
-            if X_obf[index, movie_id] == 0:
-                X_obf[index, movie_id] = avg_ratings[movie_id]  # Assign average rating
+            # if X_obf[index, movie_id] == 0:
+            #     X_obf[index, movie_id] = avg_ratings[movie_id]  # Assign average rating
+
+            # set rating of the selected movie
+            if X_obf[index, movie_id] == 0:# and X_test [index, int(movie_id) - 1] ==0:
+                if rating_mode == 'higest':
+                    X_obf[index, movie_id] = 5
+                elif rating_mode == 'avg':
+                    X_obf[index, movie_id] = avg_ratings[movie_id] # avg_ratings[int(index)]
+                elif rating_mode == 'pred':
+                    X_obf[index, movie_id] = X_filled[index, movie_id]
+
                 print(f"Added rating (long-tail only): {X_obf[index, movie_id]} for movie: {movie_id}")
                 added2 += 1
 
@@ -966,7 +1017,8 @@ def SmartBlur():
     # Save the obfuscated data to a file
     output_file = 'ml-'+dataset+'/SBlur/'
     print(output_file)
-    with open(output_file + "SBlur_" + rating_mode + "_" + sample_mode + "_" + str(p) + "_" + str(notice_factor) + ".dat", 'w') as f:
+    print(output_file + "SBlur_" + rating_mode + "_" + sample_mode + "_" + str(p) + ".dat")
+    with open(output_file + "SBlur_" + rating_mode + "_" + sample_mode + "_" + str(p) + ".dat", 'w') as f:
         for index_user, user in enumerate(X_obf):
             for index_movie, rating in enumerate(user):
                 if rating > 0:
@@ -974,15 +1026,15 @@ def SmartBlur():
 
     return X_obf
 
-def SmartBlur_Removal():
+def SmartBlur_Removal(dataset):
 
     sample_mode = list(['random', 'sampled', 'greedy'])[2]
-    rating_mode = list(['highest', 'avg', 'pred'])[1]
+    rating_mode = list(['highest', 'avg', 'pred'])[2]
     removal_mode = list(['random', 'strategic'])[1]
     top = 100
-    p = 0.1
+    p = 0.05
     notice_factor = 2
-    dataset = ['100k', '1m', 'yahoo'][2]
+    # dataset = ['100k', '1m', 'yahoo'][2]
 
     if dataset == '100k':
         X = DL.load_user_item_matrix_100k()
@@ -1086,8 +1138,20 @@ def SmartBlur_Removal():
             if rating_count > max_count[movie_id]:
                 continue
 
-            if X_obf[index, movie_id] == 0:
-                X_obf[index, movie_id] = avg_ratings[movie_id]  # Assign average rating
+            # if X_obf[index, movie_id] == 0:
+            #     X_obf[index, movie_id] = avg_ratings[movie_id]  # Assign average rating
+
+            # set rating of the selected movie
+            if X_obf[index, movie_id] == 0:# and X_test [index, int(movie_id) - 1] ==0:
+                if rating_mode == 'higest':
+                    X_obf[index, movie_id] = 5
+                elif rating_mode == 'avg':
+                    X_obf[index, movie_id] = avg_ratings[movie_id] # avg_ratings[int(index)]
+                elif rating_mode == 'pred':
+                    X_obf[index, movie_id] = X_filled[index, movie_id]
+                    # if X_obf[index, int(movie_id) - 1] == 0:
+                    #     X_obf[index, int(movie_id) - 1] = avg_ratings[int((movie_id) - 1)]
+
                 print(f"Added rating (no constraints): {X_obf[index, movie_id]} for movie: {movie_id}")
                 added1 += 1
 
@@ -1130,8 +1194,20 @@ def SmartBlur_Removal():
             if rating_count > max_count[movie_id]:
                 continue
 
-            if X_obf[index, movie_id] == 0:
-                X_obf[index, movie_id] = avg_ratings[movie_id]  # Assign average rating
+            # if X_obf[index, movie_id] == 0:
+            #     X_obf[index, movie_id] = avg_ratings[movie_id]  # Assign average rating
+
+            # set rating of the selected movie
+            if X_obf[index, movie_id] == 0:# and X_test [index, int(movie_id) - 1] ==0:
+                if rating_mode == 'higest':
+                    X_obf[index, movie_id] = 5
+                elif rating_mode == 'avg':
+                    X_obf[index, movie_id] = avg_ratings[movie_id] # avg_ratings[int(index)]
+                elif rating_mode == 'pred':
+                    X_obf[index, movie_id] = X_filled[index, movie_id]
+                    # if X_obf[index, int(movie_id) - 1] == 0:
+                    #     X_obf[index, int(movie_id) - 1] = avg_ratings[int((movie_id) - 1)]
+
                 print(f"Added rating (long-tail only): {X_obf[index, movie_id]} for movie: {movie_id}")
                 added2 += 1
 
@@ -1225,7 +1301,7 @@ def SmartBlur_Removal():
     # Save the obfuscated data to a file
     output_file = 'ml-'+dataset+'/SBlur/'
     print(output_file)
-    with open(output_file + "SBlur_Removal_" + rating_mode + "_" + sample_mode + "_" + str(p) + "_" + str(notice_factor) + ".dat", 'w') as f:
+    with open(output_file + "SBlur_Removal_" + rating_mode + "_" + sample_mode + "_" + str(p) + ".dat", 'w') as f:
         for index_user, user in enumerate(X_obf):
             for index_movie, rating in enumerate(user):
                 if rating > 0:
@@ -1234,12 +1310,12 @@ def SmartBlur_Removal():
     return X_obf
 
 
-# blurMe()
-dataset ='100k' # 1m # yahoo
+dataset = '100k'  #'100k' # 1m # yahoo
+blurMe(dataset)
 # Personalized_list_User(dataset)# # This will create the lists of indicative items. It goes before the PerBlur function
-PerBlur()
-# PerBlur_No_Removal()
-#SmartBlur()
-# SmartBlur_Removal()
+# PerBlur_No_Removal(dataset)
+# PerBlur(dataset)
+# SmartBlur(dataset)
+# SmartBlur_Removal(dataset)
 
 
