@@ -1,24 +1,8 @@
-"""
-PerBlur is extension of previous work proposed by Windenberg et al., (BlurMe: Inferring and Obfuscating
-User Gender Based on Ratings ) and Strucks et al., (BlurM(or)e: Revisiting Gender Obfuscation
-in the User-Item Matrix)
-
-This code is extending previous github repository done by Christopher Strucks (Github Link: https://github.com/STrucks/BlurMore)
-
-In PerBlur you need to :
-    + Generate json file: "Confidence score" from imputation/knn/few_observed_entries
-    + You will read the json file
-"""
-
 from sklearn.model_selection import GridSearchCV
 
 import RecSys_DataLoader as DL
 import numpy as np
-import matplotlib.pyplot as plt
-import scipy.stats as ss
-import pandas as pd
 import json
-import math
 
 class NpEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -37,8 +21,7 @@ def blurMe(dataset):
     sample_mode = list(['random', 'sampled', 'greedy'])[2]
     rating_mode = list(['highest', 'avg', 'pred'])[2]
     p = 0.05
-    notice_factor = 2 #determines the maximum number of ratings allowed for obfuscation.
-    # dataset = ['100k', '1m', 'yahoo'][0]
+    notice_factor = 2
 
     if dataset == '100k':
         X = DL.load_user_item_matrix_100k()
@@ -74,8 +57,6 @@ def blurMe(dataset):
     # max_count: that means how much a item can be added to the users profile is not considered in blurme
 
     print("obfuscation")
-
-    # Now, start obfuscating the data:
 
     X_obf = np.copy(X)
 
@@ -164,320 +145,7 @@ def blurMe(dataset):
 
     return X_obf
 
-
-def blurMePP():
-    top = -1
-    sample_mode = list(['random', 'sampled', 'greedy'])[2]
-    removal_mode = list(['random', 'strategic'])[1]
-    rating_mode = list(['avg', 'predicted'])[0]
-    #id_index, index_id = MD.load_movie_id_index_dict()
-    notice_factor = 2
-    p = 0.05
-    dataset = ['ML', 'Fx', 'LFM', 'Li'][0]
-    if dataset == 'ML':
-        X = MD.load_user_item_matrix_1m_all()
-        # X = MD.load_user_item_matrix_1m_trainingSet()  # load_user_item_matrix_1m_trainingSet max_user=max_user, max_item=max_item)
-        T = MD.load_gender_vector_1m()  # max_user=max_user)
-        #X_test = MD.load_user_item_matrix_1m_testSet()
-        # X = MD.load_user_item_matrix_100k()
-        # T = MD.load_gender_vector_100k()
-    elif dataset == 'Fx':
-        """import FlixsterData as FD
-        #X, T, _ = FD.load_flixster_data_subset()
-        X, T, _ = FD.load_flixster_data_subset_trainingSet()"""
-        import FlixsterDataSub as FDS
-        # X = FDS.load_user_item_matrix_FX_All()
-        X = FDS.load_user_item_matrix_FX_TrainingSet()
-        X_test = FDS.load_user_item_matrix_FX_Test()
-        T = FDS.load_gender_vector_FX()
-    elif dataset == 'LFM':
-        print("no file for lfm")
-        #import LastFMData as LFM
-        # X = LFM.load_user_item_matrix_lfm_Train()  # LFM.load_user_item_matrix_lfm_All()
-        #X = LFM.load_user_item_matrix_lfm_All()  # load_user_item_matrix_lfm_Train LFM.load_user_item_matrix_lfm_All()
-        #T = LFM.load_gender_vector_lfm()
-        #X_test = LFM.load_user_item_matrix_lfm_Test()
-    else:
-        import LibimSeTiData as LD
-        X, T, _ = LD.load_libimseti_data_subset()
-    # X = Utils.normalizze(X)
-    avg_ratings = np.zeros(shape=X.shape[1])
-    initial_count = np.zeros(shape=X.shape[1])
-
-    for item_id in range(X.shape[1]):
-        ratings = [rating for rating in X[:, item_id] if rating > 0]
-        avg_ratings[item_id] = np.average(ratings) if ratings else 0
-        initial_count[item_id] = len(ratings)
-
-    max_count = initial_count * notice_factor
-    # 1: get the set of most correlated movies, L_f and L_m:
-    """from sklearn.model_selection import StratifiedKFold
-    from sklearn.linear_model import LogisticRegression
-
-    cv = StratifiedKFold(n_splits=10)
-    coefs = []
-    avg_coefs = np.zeros(shape=(len(X[1]),))
-
-    random_state = np.random.RandomState(0)
-    for train, test in cv.split(X, T):
-        x, t = X[train], T[train]
-        model = LogisticRegression(penalty='l2', random_state=random_state)
-        model.fit(x, t)
-        # rank the coefs:
-        ranks = ss.rankdata(model.coef_[0])
-        coefs.append(ranks)
-        # print(len(model.coef_[0]),len(x[0]))
-        avg_coefs += model.coef_[0]
-
-    coefs = np.average(coefs, axis=0)
-    coefs = [[coefs[i], i + 1, avg_coefs[i]] for i in range(len(coefs))]
-    coefs = np.asarray(list(sorted(coefs)))
-
-
-    if top == -1:
-        values = coefs[:,2]
-        index_zero = np.where(np.abs(values) == np.min(np.abs(values)))
-        top_male = index_zero[0][0]
-        top_female = index_zero[0][-1]
-        L_m = coefs[:top_male, 1][100:]
-        # print(len(L_m))
-        R_m = 2835 - coefs[:top_male, 0] #3952 2835
-        C_m = np.abs(coefs[:top_male, 2])
-        # C_m = [x for x in C_m if x > 2] # C_m[C_m <=  2]
-        # print("C_m", type (C_m), "\n", C_m)
-        L_f = coefs[coefs.shape[0] - top_female:, 1][100:]
-        L_f = list(reversed(L_f))
-        R_f = coefs[coefs.shape[0] - top_female:, 0]
-        R_f = list(reversed(R_f))
-        C_f = coefs[coefs.shape[0] - top_female:, 2]
-        C_f = list(reversed(np.abs(C_f)))
-        # C_f = [x for x in C_f if x > 2] # C_f[C_f <= 2]
-        # print("C_f", type (C_f), "\n", C_f)
-
-        # plt.plot(C_m, label = 'Male Coef', c= 'lightskyblue')
-        # plt.plot(C_f, label = 'Female Coef', c= 'lightpink')
-        # plt.axhline(y=2, color='crimson', linestyle='--')
-        # plt.legend(loc="upper right")
-        # plt.title("Male and Female coefficients on Flixster Data", fontsize=16, fontweight="bold")
-        # plt.xlabel ('Features', fontsize=19)
-        # plt.ylabel ('Coefficients', fontsize=19)
-        # # plt.savefig("threshold_ML1M_IndicativeItems.pdf")
-        # plt.show()
-
-    else:
-        L_m = coefs[:top, 1]
-        R_m = 2835 -coefs[:top, 0] #3952 2835
-        C_m = np.abs(coefs[:top, 2])
-        L_f = coefs[coefs.shape[0]-top:, 1]
-        L_f = list(reversed(L_f))
-        R_f = coefs[coefs.shape[0]-top:, 0]
-        R_f = list(reversed(R_f))
-        C_f = coefs[coefs.shape[0]-top:, 2]
-        C_f = list(reversed(np.abs(C_f)))
-
-    # print(len(L_f))
-    # Here we are trying to get all the less indicative items for F / M
-    # Based on the plot we see that from 600 to the end the coefficients are <= 2
-    L_ff = L_f.copy()
-    print(L_ff)
-    ## low indicative items
-    # L_ff = L_ff [100:]
-    # highly indicative items
-    # L_ff = L_ff[:400]
-    # print("L_ff:", L_ff, "\n\n", len(L_ff))
-    L_ff = pd.DataFrame(L_ff)
-    L_ff.to_csv('L_f_FX_Normalized.csv', index=False)
-    # print("------")
-    # print(len(L_m))
-    L_mm = L_m.copy()
-    print (L_mm)
-    ## low indicative items
-    # L_mm = L_mm [100:]
-    # highly indicative items
-    # L_mm = L_mm[:400]
-    # print("L_mm:", L_mm, "\n\n", len( L_mm))
-    L_mm = pd.DataFrame(L_mm)
-    L_mm.to_csv('L_m_FX_Normalized.csv', index=False)"""
-    # Now, where we have the two lists, we can start obfuscating the data:
-    #X = MD.load_user_item_matrix_1m()
-    #np.random.shuffle(X)
-    #print(X.shape)
-
-    X_obf = np.copy(X)
-    total_added = 0
-    for index, user in enumerate(X):
-        print(index)
-        k = 0
-        for rating in user:
-            if rating > 0:
-                k += 1
-        k *= p
-        greedy_index_m = 0
-        greedy_index_f = 0
-        # print(k)
-        added = 0
-        if T[index] == 1:
-            safety_counter = 0
-            while added < k and safety_counter < 100:
-                if greedy_index_m >= len(L_m):
-                    safety_counter = 100
-                    continue
-                if sample_mode == 'greedy':
-                    movie_id = L_m[greedy_index_m]
-                if sample_mode == 'random':
-                    movie_id = L_m[np.random.randint(0, len(L_m))]
-                greedy_index_m += 1
-                rating_count = sum([1 if x > 0 else 0 for x in X_obf[:, int(movie_id)-1]])
-                if rating_count > max_count[int(movie_id)-1]:
-                    continue
-                if X_obf[index, int(movie_id) - 1] == 0:# and X_test [index, int(movie_id) - 1] ==0:
-                    X_obf[index, int(movie_id) - 1] = avg_ratings[int(movie_id) - 1]
-                    added += 1
-                safety_counter += 1
-        elif T[index] == 0:
-            safety_counter = 0
-            while added < k and safety_counter < 100:
-                if greedy_index_f >= len(L_f):
-                    safety_counter = 100
-                    continue
-                if sample_mode == 'greedy':
-                    movie_id = L_f[greedy_index_f]
-                if sample_mode == 'random':
-                    movie_id = L_f[np.random.randint(0, len(L_f))]
-                greedy_index_f += 1
-                rating_count = sum([1 if x > 0 else 0 for x in X_obf[:, int(movie_id) - 1]])
-                if rating_count > max_count[int(movie_id) - 1]:
-                    continue
-
-                if X_obf[index, int(movie_id) - 1] == 0:# and X_test [index, int(movie_id) - 1] ==0:
-                    X_obf[index, int(movie_id) - 1] = avg_ratings[int(movie_id) - 1]
-                    added += 1
-                safety_counter += 1
-        total_added += added
-
-    # Now remove ratings from users that have more than 200 ratings equally:
-    if removal_mode == "random":
-        nr_many_ratings = 0
-        for user in X:
-            rating_count = sum([1 if x > 0 else 0 for x in user])
-            if rating_count > 20: # 200 for ML1M and 300 for Flixster
-                nr_many_ratings += 1
-        nr_remove = total_added / nr_many_ratings
-
-        for user_index, user in enumerate(X):
-            rating_count = sum([1 if x > 0 else 0 for x in user])
-            if rating_count > 20:
-                to_be_removed_indecies = np.random.choice(np.argwhere(user > 0)[:, 0], size=(int(nr_remove),))#,replace=False)
-                X_obf[user_index, to_be_removed_indecies] = 0
-    else:
-        nr_many_ratings = 0
-        for user in X:
-            rating_count = sum([1 if x > 0 else 0 for x in user])
-            if rating_count > 20:
-                nr_many_ratings += 1
-        print("nr_many_ratings:", nr_many_ratings)
-        print("total_added:", total_added)
-        nr_remove = total_added / nr_many_ratings
-
-        for user_index, user in enumerate(X):
-            print("user: ", user_index)
-            rating_count = sum([1 if x > 0 else 0 for x in user])
-            if rating_count > 20:
-                index_m = 0
-                index_f = 0
-                rem = 0
-                if T[user_index] == 1:
-                    safety_counter = 0
-                    # We note that if we add safety_counter < 1000 in the while we have a higher accuracy than if we keep it in the if
-                    while (rem < nr_remove) and safety_counter < 100:
-                        if index_f >= len(L_f) :
-                            safety_counter = 100
-                            continue
-
-                        if removal_mode == "random":
-                            to_be_removed_indecies = np.random.choice(np.argwhere(user > 0)[:, 0],
-                                                                      size=(int(nr_remove),),
-                                                                      replace=False)  # , replace=False)
-                        if removal_mode == "strategic":
-                            to_be_removed_indecies = L_f[index_f]
-                        index_f += 1
-
-                        if X_obf[user_index, int(to_be_removed_indecies) - 1] != 0:
-                            X_obf[user_index, int(to_be_removed_indecies) - 1] = 0
-                            rem += 1
-                        safety_counter += 1
-
-                elif T[user_index] == 0:
-
-                    while (rem < nr_remove) and safety_counter < 100:
-                        if index_m >= len(L_m) :#and safety_counter < 1000:
-                            safety_counter = 100
-                            continue
-
-                        if removal_mode == "random":
-                            to_be_removed_indecies = np.random.choice(np.argwhere(user > 0)[:, 0],
-                                                                      size=(int(nr_remove),),
-                                                                      replace=False)  # , replace=False)
-                        # X_obf[user_index, to_be_removed_indecies] = 0
-
-                        if removal_mode == "strategic":
-                            to_be_removed_indecies = L_m[index_m]
-                        index_m += 1
-
-                        if X_obf[user_index, int(to_be_removed_indecies) - 1] != 0:
-                            X_obf[user_index, int(to_be_removed_indecies) - 1] = 0
-                            rem += 1
-                        safety_counter += 1
-
-
-    # output the data in a file:
-    output_file = ""
-    if dataset == 'ML':
-        output_file = "ml-1m/BlurMore/"#"ml1m/"#"ml-1m/BlurMore/" ml-1m/BlurMore/Random_Removal/
-        with open(output_file + "All_testSafe`Count_threshold20_ML1M_blurmepp_obfuscated_" + sample_mode + "_" +
-                  str(p) + "_" + str(notice_factor) + "_" + str(removal_mode)  + ".dat",
-                  'w') as f: # + "_" + str(removal_mode) + ".dat",
-            for index_user, user in enumerate(X_obf):
-                for index_movie, rating in enumerate(user):
-                    if rating > 0:
-                        f.write(
-                            str(index_user + 1) + "::" + str(index_movie + 1) + "::" + str(
-                                int(np.round(rating))) + "::000000000\n")
-
-    elif dataset == 'Fx':
-        output_file = "Flixster/"#BlurMore/RandomRem/" # "Flixster/BlurMore/Greedy_Removal/" FX/
-        with open(output_file + "All_testSafe`Count_threshold20_ExcludeTestSet_FX_blurmepp_obfuscated_" + sample_mode + "_" + str(p) + "_" + str(
-                notice_factor) + "_" + str(removal_mode) + ".dat",
-                  'w') as f:
-            for index_user, user in enumerate(X_obf):
-                for index_movie, rating in enumerate(user):
-                    if rating > 0:
-                        f.write(str(index_user + 1) + "::" + str(index_movie + 1) + "::" + str(
-                            int(np.round(rating))) + "::000000000\n")
-    elif dataset == 'LFM':
-        output_file = "lastFM/"#BlurMore/RandomRem/"
-        with open(output_file + "All_testSafe`Count_LFM_blurmepp_ExcludeTestSet_obfuscated_" + sample_mode + "_" + str(p) + "_" +str( notice_factor) + "_" + str(removal_mode) + ".dat",
-                      'w') as f:
-            for index_user, user in enumerate(X_obf):
-                for index_movie, rating in enumerate(user):
-                    if rating > 0:
-                        f.write(str(index_user + 1) + "::" + str(index_movie + 1) + "::" + str(
-                            int(np.round(rating))) + "::000000000\n")
-
-    else:
-        with open("libimseti/LST_blurmepp_obfuscated_" + sample_mode + "_" + str(p) + "_" + str(notice_factor) + ".dat", 'w') as f:
-            for index_user, user in enumerate(X_obf):
-                for index_movie, rating in enumerate(user):
-                    if rating > 0:
-                        f.write(str(index_user+1) + "::" + str(index_movie+1) + "::" + str(
-                            int(np.round(rating))) + "::000000000\n")
-
-
-    return X_obf
-
-
-# --- Creation of Personalized list of indicative items
-
+# --- Creation of Personalized list of indicative items for PerBlur
 def Personalized_list_User(dataset):
     notice_factor = 2
     item_choice = {}
@@ -525,13 +193,11 @@ def Personalized_list_User(dataset):
 
     # 1: get the set of most correlated movies, L_f and L_m:
     k = 100
-    # k = 50
     L_m = list(map(lambda x: x-1, L_m))[:k]
     L_f = list(map(lambda x: x-1, L_f))[:k]
 
     print(len(len_dict))
     for z in range(len(X)):
-        #print(z)
         values = len_dict[z]
         lst_j = []
         # list of neighbors ordered / ranked by weight for user i
@@ -572,7 +238,6 @@ def PerBlur_No_Removal(dataset):
     top = 100
     p = 0.05
     notice_factor = 2
-    # dataset = ['100k', '1m', 'yahoo'][2]
 
     if dataset == '100k':
         X = DL.load_user_item_matrix_100k()
@@ -600,10 +265,6 @@ def PerBlur_No_Removal(dataset):
     # 1: get the set of most correlated movies, L_f and L_m:
     with open('ml-'+dataset+'/NN_TrainingSet_AllUsers_Neighbors_Weight_K_30_item_choice_Top100IndicativeItems_noRemoval.json') as json_file:
         item_choice = json.load(json_file)
-
-    # with open('ml-' + dataset + '/Dist/combine_personalized_recommendations_top100.json') as json_file:
-    #     item_choice = json.load(json_file)
-
 
     # Now, where we have the two lists, we can start obfuscating the data:
     X_obf = np.copy(X)
@@ -635,10 +296,6 @@ def PerBlur_No_Removal(dataset):
             rating_count = sum([1 if x > 0 else 0 for x in X_obf[:, movie_id]])
             if rating_count > max_count[movie_id]:
                 continue
-
-            # if X_obf[index, movie_id] == 0:# and X_test [index, int(movie_id) ] == 0:
-            #     X_obf[index, movie_id] =  avg_ratings[int(movie_id)] # X_filled[index, movie_id] #  #
-            #     print(f"obf: {X_obf[index, movie_id]}, movie: {movie_id}")
 
             # set rating of the selected movie
             if X_obf[index, movie_id] == 0:# and X_test [index, int(movie_id) - 1] ==0:
@@ -680,8 +337,6 @@ def PerBlur(dataset):
     p = 0.05
     notice_factor = 2
 
-    # dataset = ['100k', '1m', 'yahoo'][2]
-
     if dataset == '100k':
         X = DL.load_user_item_matrix_100k()
         T = DL.load_gender_vector_100k()
@@ -722,8 +377,6 @@ def PerBlur(dataset):
 
     with open('ml-'+dataset+'/NN_TrainingSet_AllUsers_Neighbors_Weight_K_30_item_choice_Top100IndicativeItems_noRemoval.json') as json_file:
         item_choice = json.load(json_file)
-    # with open('ml-' + dataset + '/Dist/combine_personalized_recommendations_top100.json') as json_file:
-    #     item_choice = json.load(json_file)
 
     # Now, where we have the two lists, we can start obfuscating the data:
     X_obf = np.copy(X)
@@ -754,10 +407,6 @@ def PerBlur(dataset):
             rating_count = sum([1 if x > 0 else 0 for x in X_obf[:, movie_id]])
             if rating_count > max_count[movie_id]:
                 continue
-
-            # if X_obf[index, movie_id] == 0:# and X_test [index, int(movie_id) ] == 0:
-            #
-            #     X_obf[index, movie_id] =  avg_ratings[int(movie_id)] # X_filled[index, movie_id]
 
             # set rating of the selected movie
             if X_obf[index, movie_id] == 0:# and X_test [index, int(movie_id) - 1] ==0:
@@ -857,10 +506,9 @@ def PerBlur(dataset):
 def SmartBlur(dataset):
 
     sample_mode = list(['random', 'sampled', 'greedy'])[2]
-    rating_mode = list(['highest', 'avg', 'pred'])[2]
+    rating_mode = list(['highest', 'avg', 'pred'])[1]
     p = 0.05
     notice_factor = 2
-    # dataset = ['100k', '1m', 'yahoo'][2]
 
     if dataset == '100k':
         X = DL.load_user_item_matrix_100k()
@@ -951,9 +599,6 @@ def SmartBlur(dataset):
             if rating_count > max_count[movie_id]:
                 continue
 
-            # if X_obf[index, movie_id] == 0:
-            #     X_obf[index, movie_id] = avg_ratings[movie_id]  # Assign average rating
-
             # set rating of the selected movie
             if X_obf[index, movie_id] == 0:# and X_test [index, int(movie_id) - 1] ==0:
                 if rating_mode == 'higest':
@@ -983,7 +628,6 @@ def SmartBlur(dataset):
                 elif T[index] == 1:
                     movie_id = int(long_Lm[greedy_index])
             elif sample_mode == 'random':
-                #movie_id = int(vec[np.random.randint(0, len(vec))])  # Get movie ID for random mode
                 if T[index] == 0:
                     movie_id = int(long_Lf[np.random.randint(0, len(long_Lf))])
                 elif T[index] == 1:
@@ -994,9 +638,6 @@ def SmartBlur(dataset):
             rating_count = sum(1 if x > 0 else 0 for x in X_obf[:, movie_id])
             if rating_count > max_count[movie_id]:
                 continue
-
-            # if X_obf[index, movie_id] == 0:
-            #     X_obf[index, movie_id] = avg_ratings[movie_id]  # Assign average rating
 
             # set rating of the selected movie
             if X_obf[index, movie_id] == 0:# and X_test [index, int(movie_id) - 1] ==0:
@@ -1029,12 +670,10 @@ def SmartBlur(dataset):
 def SmartBlur_Removal(dataset):
 
     sample_mode = list(['random', 'sampled', 'greedy'])[2]
-    rating_mode = list(['highest', 'avg', 'pred'])[2]
+    rating_mode = list(['highest', 'avg', 'pred'])[1]
     removal_mode = list(['random', 'strategic'])[1]
-    top = 100
     p = 0.05
     notice_factor = 2
-    # dataset = ['100k', '1m', 'yahoo'][2]
 
     if dataset == '100k':
         X = DL.load_user_item_matrix_100k()
@@ -1083,8 +722,8 @@ def SmartBlur_Removal(dataset):
     print(f'popular_Lf: {popular_Lf}')
 
 
-    popular_items_added_in_males = {}
-    popular_items_added_in_females = {}
+    popular_items_added_in_males_Lf = {}
+    popular_items_added_in_females_Lm = {}
 
     # Calculate average ratings and initial count
     avg_ratings = np.zeros(shape=X.shape[1])
@@ -1138,9 +777,6 @@ def SmartBlur_Removal(dataset):
             if rating_count > max_count[movie_id]:
                 continue
 
-            # if X_obf[index, movie_id] == 0:
-            #     X_obf[index, movie_id] = avg_ratings[movie_id]  # Assign average rating
-
             # set rating of the selected movie
             if X_obf[index, movie_id] == 0:# and X_test [index, int(movie_id) - 1] ==0:
                 if rating_mode == 'higest':
@@ -1149,21 +785,19 @@ def SmartBlur_Removal(dataset):
                     X_obf[index, movie_id] = avg_ratings[movie_id] # avg_ratings[int(index)]
                 elif rating_mode == 'pred':
                     X_obf[index, movie_id] = X_filled[index, movie_id]
-                    # if X_obf[index, int(movie_id) - 1] == 0:
-                    #     X_obf[index, int(movie_id) - 1] = avg_ratings[int((movie_id) - 1)]
 
                 print(f"Added rating (no constraints): {X_obf[index, movie_id]} for movie: {movie_id}")
                 added1 += 1
 
                 # Track if the added item belongs to `popular_Lf` for male users & popular_Lm` for female users
                 if T[index] == 0 and movie_id in popular_Lf:
-                    if movie_id not in popular_items_added_in_males:
-                        popular_items_added_in_males[movie_id] = []
-                    popular_items_added_in_males[movie_id].append(index)
+                    if movie_id not in popular_items_added_in_males_Lf:
+                        popular_items_added_in_males_Lf[movie_id] = []
+                    popular_items_added_in_males_Lf[movie_id].append(index)
                 elif T[index] == 1 and movie_id in popular_Lm:
-                    if movie_id not in popular_items_added_in_females:
-                        popular_items_added_in_females[movie_id] = []
-                    popular_items_added_in_females[movie_id].append(index)
+                    if movie_id not in popular_items_added_in_females_Lm:
+                        popular_items_added_in_females_Lm[movie_id] = []
+                    popular_items_added_in_females_Lm[movie_id].append(index)
 
             safety_counter += 1
 
@@ -1175,14 +809,11 @@ def SmartBlur_Removal(dataset):
 
             vec = mylist[index]
             if sample_mode == 'greedy':
-                #movie_id = int(vec[greedy_index]) #.58 # Get movie ID for greedy mode
-                #movie_id = int(not_in_Lm_or_Lf[greedy_index]) #.61
                 if T[index] == 0:
                     movie_id = int(long_Lf[greedy_index])
                 elif T[index] == 1:
                     movie_id = int(long_Lm[greedy_index])
             elif sample_mode == 'random':
-                #movie_id = int(vec[np.random.randint(0, len(vec))])  # Get movie ID for random mode
                 if T[index] == 0:
                     movie_id = int(long_Lf[np.random.randint(0, len(long_Lf))])
                 elif T[index] == 1:
@@ -1193,9 +824,6 @@ def SmartBlur_Removal(dataset):
             rating_count = sum(1 if x > 0 else 0 for x in X_obf[:, movie_id])
             if rating_count > max_count[movie_id]:
                 continue
-
-            # if X_obf[index, movie_id] == 0:
-            #     X_obf[index, movie_id] = avg_ratings[movie_id]  # Assign average rating
 
             # set rating of the selected movie
             if X_obf[index, movie_id] == 0:# and X_test [index, int(movie_id) - 1] ==0:
@@ -1217,7 +845,7 @@ def SmartBlur_Removal(dataset):
 
 
     # --- Remove Popular_Lf Items Added by Male Users from Female Users ---
-    for movie_id, male_users in popular_items_added_in_males.items():
+    for movie_id, male_users in popular_items_added_in_males_Lf.items():
         print(f"Removing {len(male_users)} ratings for movie {movie_id} from female users...")
 
         # Track how many ratings we need to remove
@@ -1235,7 +863,7 @@ def SmartBlur_Removal(dataset):
                     X_obf[user_index, movie_id] = 0  # Remove rating
                     removed_count += 1  # Increment the removed count
 
-    for movie_id, female_users in popular_items_added_in_females.items():
+    for movie_id, female_users in popular_items_added_in_females_Lm.items():
         print(f"Removing {len(female_users)} ratings for movie {movie_id} from male users...")
 
         # Track how many ratings we need to remove
@@ -1255,52 +883,10 @@ def SmartBlur_Removal(dataset):
                     X_obf[user_index, movie_id] = 0  # Remove rating
                     removed_count += 1  # Increment the removed count
 
-        # print(f"Removed {removed_count} ratings for movie {movie_id}.")
-
-
-    # --- Ensure Consistent Popular Item Counts ---
-    # for item_id in popular_Lm + popular_Lf:
-    #     original_count = sum(1 if x > 0 else 0 for x in X[:, item_id])
-    #     obfuscated_count = sum(1 if x > 0 else 0 for x in X_obf[:, item_id])
-    #
-    #     if obfuscated_count > original_count:
-    #
-    #         excess = obfuscated_count - original_count
-    #         #print(f"Reducing {excess} count for item {item_id} to match original...")
-    #         for user_index in np.argwhere(X_obf[:, item_id] > 0).flatten():
-    #
-    #             rating_in_X = sum(1 if x > 0 else 0 for x in X[user_index, :])
-    #
-    #             if rating_in_X > 20:
-    #
-    #
-    #                 if T[user_index] == 0 and movie_id in popular_Lm:
-    #                     if excess <= 0:
-    #                         break
-    #                     X_obf[user_index, item_id] = 0
-    #                     print(user_index)
-    #                     excess -= 1
-    #                 elif T[user_index] == 1 and movie_id in popular_Lf:
-    #                     if excess <= 0:
-    #                         break
-    #                     X_obf[user_index, item_id] = 0
-    #                     print(user_index)
-    #                     excess -= 1
-    #
-    #             # if T[user_index] == 0 and movie_id in popular_Lm:
-    #             #     if excess <= 0:
-    #             #         break
-    #             #     X_obf[user_index, item_id] = 0
-    #             #     excess -= 1
-    #             # elif T[user_index] == 1 and movie_id in popular_Lf:
-    #             #     if excess <= 0:
-    #             #         break
-    #             #     X_obf[user_index, item_id] = 0
-    #             #     excess -= 1
-
     # Save the obfuscated data to a file
     output_file = 'ml-'+dataset+'/SBlur/'
     print(output_file)
+    print(output_file + "SBlur_Removal_" + rating_mode + "_" + sample_mode + "_" + str(p) + ".dat")
     with open(output_file + "SBlur_Removal_" + rating_mode + "_" + sample_mode + "_" + str(p) + ".dat", 'w') as f:
         for index_user, user in enumerate(X_obf):
             for index_movie, rating in enumerate(user):
@@ -1310,12 +896,10 @@ def SmartBlur_Removal(dataset):
     return X_obf
 
 
-dataset = '100k'  #'100k' # 1m # yahoo
-blurMe(dataset)
+dataset = '1m' #'1m'  #'100k' # 1m # yahoo
+# blurMe(dataset)
 # Personalized_list_User(dataset)# # This will create the lists of indicative items. It goes before the PerBlur function
 # PerBlur_No_Removal(dataset)
 # PerBlur(dataset)
-# SmartBlur(dataset)
-# SmartBlur_Removal(dataset)
-
-
+SmartBlur(dataset)
+SmartBlur_Removal(dataset)
