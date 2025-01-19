@@ -4,7 +4,6 @@ from scipy.spatial.distance import pdist, squareform
 import numpy as np
 import pandas as pd
 import json
-# import MovieLensData as MD
 import RecSys_DataLoader as DL
 
 class NumpyEncoder(json.JSONEncoder):
@@ -19,8 +18,6 @@ class NumpyEncoder(json.JSONEncoder):
 
 def compute_distance_based_sim(matrix):
 
-    # Step 1: Compute the Euclidean distance matrix
-    # pdist computes the pairwise distance, squareform converts it into a matrix
     distance_matrix = squareform(pdist(matrix, metric='euclidean'))
     similarity_matrix = 1 / (1 + distance_matrix)
 
@@ -57,6 +54,14 @@ def find_item_cat(data):
     long_tail_items = list(long_tail_items)
     popular_items = list(popular_items)
 
+    with open('ml-'+data + '/longtail_item.dat', 'w') as f:
+        for item in long_tail_items:
+            f.write(f"{item}\n")
+
+    with open('ml-'+data + '/popular_item.dat', 'w') as f:
+        for item in popular_items:
+            f.write(f"{item}\n")
+
     popular_Lm = [item_id for item_id in male_itemids if item_id in popular_items]
     popular_Lf = [item_id for item_id in female_itemids if item_id in popular_items]
 
@@ -67,21 +72,14 @@ def find_item_cat(data):
 
 def identify_popular_and_long_tail_items(X):
 
-    # Step 1: Count the number of ratings per item (non-zero entries)
     item_rating_counts = np.count_nonzero(X, axis=0)
-
-    # Step 2: Calculate the total number of ratings
     total_ratings = np.sum(item_rating_counts)
 
-    # Step 3: Calculate cumulative percentage of ratings
     sorted_indices = np.argsort(item_rating_counts)[::-1]  # Sort items by count in descending order
     sorted_counts = item_rating_counts[sorted_indices]     # Get the sorted counts
     cumulative_counts = np.cumsum(sorted_counts)           # Calculate cumulative ratings
 
-    # Step 4: Identify the split index for 80% of the total ratings
     split_index = np.searchsorted(cumulative_counts, 0.8 * total_ratings)
-
-    # Step 5: Classify items as popular and long-tail
     popular_items = sorted_indices[:split_index + 1]  # Items contributing to 80% of total ratings
     long_tail_items = sorted_indices[split_index + 1:]  # Remaining items (20%)
 
@@ -89,6 +87,9 @@ def identify_popular_and_long_tail_items(X):
 
 def knn_impute_and_recommend(data):
     # Load user-item matrix
+    # to execute following lines, manually put heading userid in the user_genre_matrix_round.dat file
+    # gen_pref = pd.read_csv('ml-yahoo/user_genre_matrix_round.dat', delimiter=',')
+    # gen_pref = gen_pref.drop(columns=['userid'])
 
     if data == '1m':
         X = DL.load_user_item_matrix_1m()
@@ -118,7 +119,7 @@ def knn_impute_and_recommend(data):
         gen_pref = gen_pref.drop(columns=['userid'])  # -- to execute the code, manually set userid in the file as header
         output_file = 'ml-yahoo/Dist/'
 
-        # --- gender indicative items
+        # --- gender indicative items -> 20 filter
         male_itemids = [5416, 7475, 8013, 279, 4705, 6946, 3879, 5506, 6188, 97, 8271, 8259, 4883, 8151, 581, 6963, 7657, 7986, 8377, 7026, 5609, 7577, 3465, 8406, 5788, 7763, 8196, 7607, 8284, 8380, 7946, 191, 7002, 619, 5365, 7993, 8443, 8330, 453, 8290, 6962, 8063, 67, 6253]
         female_itemids = [8569, 8176, 8494, 5099, 8218, 8533, 4931, 126, 760, 7813, 8563, 4468, 8219, 562, 8319, 4636, 1100, 8215, 8379, 1642, 8072, 8323, 3618, 7020, 7864, 7628, 4804, 441, 323, 719, 5302, 7885, 8390, 2315, 8306, 8238, 8301, 8253, 1160, 2405, 1970, 8177, 6944, 5675, 8093, 7656, 1576, 1362, 550, 4819, 6957, 939, 4234, 2258, 6970, 5448, 352, 7651, 7490, 8349, 7600, 54, 7781, 6221, 100, 7478, 92, 8430, 7081, 7587, 5039, 4233, 7592, 2972, 7498, 8506, 4903, 7778, 282, 8235, 6801, 6357, 8474, 303, 7972, 7630, 1621, 6948, 5984, 5391, 52, 36, 6991, 4464, 4893, 7883, 8039, 423, 7732, 3964, 291, 8531, 235, 5225, 1971, 1292, 4280, 5291, 7589, 210, 654, 361, 7557, 8459, 7834, 8134, 6932, 8227, 1101, 587, 7983, 4274, 606, 6967, 7005, 634, 7590, 110, 5841, 7860, 5521, 215, 4010, 542, 7996, 7466, 7990, 7644, 8418, 616, 8425, 8470, 8033, 388, 7756, 382, 5967, 7769, 4486, 5464, 7768, 384, 7705, 6761, 8370, 1908, 8092, 8318, 8398, 5825, 6937, 7772, 8362, 7703, 485, 7835, 8123, 5443, 2023, 8165, 5623, 7737, 5890, 8249, 2906, 4629, 8188, 149, 468, 407, 7987, 4892, 8003, 7964, 5376, 5687, 7655, 563, 6910, 4963, 7999, 7796, 8041, 4741, 4203, 4699, 8485, 6895, 5529, 6193, 7896, 597, 5159, 8027, 7479, 818, 7798, 6587, 601, 3807, 3, 8572, 6904, 2052, 621, 8266, 5850, 7483, 8048, 3941, 8486, 5404, 7936, 5134, 8303, 325, 3831, 8057, 6405, 8157, 373, 3013, 5621, 87, 6894, 8071, 5614, 5605, 8091, 8274, 8206, 329, 6488, 6837, 3826, 2323, 5025, 2494, 8058, 62, 3071, 6174, 5884, 5838, 7707, 5865, 8070, 356, 1250, 5539, 125, 7240, 7949, 3859, 182, 69, 4271, 8481, 8061, 5630, 7854, 3509, 7958, 10, 7502, 4525, 8083, 6462, 7873, 557, 154, 137, 5956, 7809, 8180, 6105, 3357, 5307, 5485, 1285, 6343, 7612, 8046, 7459, 6922, 70, 1713, 855, 8438, 204, 7945, 2085, 4337, 7747, 7633, 7941, 7012, 7843, 2567, 2522, 1872, 620, 558, 8226, 4851, 7973, 8233, 527, 7697, 213, 8214, 8421, 541, 8240, 4466, 6756, 7912, 8060, 5421, 5665, 2155, 3881, 7994, 3195, 7131, 8205, 2555, 6930, 7539, 4152, 7731, 3697, 7968, 607, 271, 5809, 239, 11, 4424, 3692, 8232, 7, 6239, 8295, 3073, 365, 5974, 1922, 1136, 2986, 7853, 2227, 7795, 6839, 1213, 8239, 524, 8124, 5579, 5530, 276, 519, 4813, 5552, 5034, 7704, 7788, 8162, 5308, 2234, 1416, 8472, 8225, 3292, 7842, 8154, 6999, 5342, 4514, 7634, 7613, 820, 8095, 3794, 6161, 102, 8327, 253, 7810, 7443, 1043, 107, 3949, 7741, 25, 254, 4981, 7519, 411, 3838, 7829, 8155, 8208, 5768, 8312, 3293, 6015, 7525, 8203, 71, 6997, 8244, 8326, 5755, 7579, 8343, 2017, 2386, 6849, 5052, 6091, 2583, 2088, 422, 8490, 4769, 469, 514, 6897, 575, 763, 3314, 3883, 8160, 8189, 5672, 7211, 5553, 6266, 8211, 7706, 8350, 805, 455, 5058, 4900, 403, 7775, 7876, 7461, 217, 6908, 8037, 7620, 7982, 1785, 7955, 8434, 8289, 7098, 6018, 5919, 5878, 5245, 8537, 8273, 538, 7838, 3614, 8212, 8193, 8210, 13, 8030, 5800, 842, 8250, 8269, 3580, 6211, 7520, 566, 8143, 8373, 6444, 3337, 8159, 4258, 7708, 8204, 7848, 7567, 151, 7937, 694, 473, 8190, 248, 8264]
 
@@ -132,24 +133,14 @@ def knn_impute_and_recommend(data):
     long_tail_items = list(long_tail_items)
     popular_items = list(popular_items)
 
-    # with open('ml-100k/longtail_item.dat', 'w') as f:
-    #     for item in long_tail_items:
-    #         f.write(f"{item}\n")
-
     num_users, num_items = X.shape
     k_neighbors = 30  # Number of similar neighbors to use for imputation
-    top_n = 50  # Number of top items to recommend per user
+    top_n = 100  # Number of top items to recommend per user
     theta = 0.15
 
     predicted_ratings = np.copy(X)  # To store imputed ratings
     neighbors_indices = {}  # To store neighbor indices for each missing rating
     confidence_scores = np.zeros_like(X)  # To store confidence scores
-
-    # Step 1: Compute Euclidean or Manhattan distance matrix
-    # ---- using this dis-sim, 5% ofs, no removal , perblur: .58
-    # distance_matrix = pairwise_distances(X, metric='euclidean') #+ epsilon  # Use 'cityblock' for Manhattan
-    # similarity_matrix = 1 / (1 + distance_matrix)
-    # ---- end this
 
     # ---- sim calculate
     # compute distance sim
@@ -166,8 +157,8 @@ def knn_impute_and_recommend(data):
     print(f"Maximum similarity (excluding diagonal): {max_value_no_diag}")
     print(f"Minimum similarity: {min_value_no_diag}")
 
-    # Step 3: Impute missing ratings
     for user_id in range(num_users):
+        print(user_id)
         neighbors_indices[user_id] = []  # Initialize for each user
         for item_id in range(num_items):
             if X[user_id, item_id] == 0:  # Only impute missing ratings
@@ -175,7 +166,6 @@ def knn_impute_and_recommend(data):
                              if n_id != user_id and X[n_id, item_id] > 0 and similarity_matrix[user_id, n_id] > theta]
 
                 neighbors = sorted(neighbors, key=lambda x: -x[1])[:k_neighbors]  # Top K neighbors
-                print(f"Neighbors found for user {user_id}, item {item_id}: {len(neighbors)}")
 
                 if neighbors:  # If any neighbors exist
                     # Store the neighbors' indices for this missing rating
@@ -187,11 +177,9 @@ def knn_impute_and_recommend(data):
                     predicted_ratings[user_id, item_id] = predicted_rating
                     confidence_scores[user_id, item_id] = len(neighbors)  # Store confidence score
 
-    # Step 4: Save the neighbors list to a JSON file
     with open(output_file + 'combine_knn_neighbors_list_' + str(k_neighbors)+"_top"+ str(top_n) + '.json', 'w') as f:
         json.dump(neighbors_indices, f, cls=NumpyEncoder)
 
-    # Step 5: Save the imputed user-item matrix to a .dat file
     with open(output_file + 'combine_knn_imputed_user_item_matrix_' + str(k_neighbors) + "_top"+ str(top_n) + '.dat', 'w') as f:
         for user_id in range(num_users):
             for item_id in range(num_items):
@@ -199,57 +187,32 @@ def knn_impute_and_recommend(data):
                     f.write(
                         f"{user_id + 1}::{item_id + 1}::{int(np.round(predicted_ratings[user_id, item_id]))}::000000000\n")
 
-    # Step 6: Save the confidence matrix
     with open(output_file + 'combine_knn_confidencematrix_' + str(k_neighbors) + "_top"+ str(top_n) + '.dat', 'w') as f:
         for user_id in range(num_users):
             for item_id in range(num_items):
                 if confidence_scores[user_id, item_id] > 0:
                     f.write(f"{user_id + 1}::{item_id + 1}::{int(confidence_scores[user_id, item_id])}\n")
 
-    # Step 7: Generate personalized item list for each user
     personalized_recommendations = {}
     for user_id in range(num_users):
         unrated_items_indices = np.where(X[user_id, :] == 0)[0]
         top_items = sorted([(item_id, predicted_ratings[user_id, item_id], confidence_scores[user_id, item_id])
-                            for item_id in unrated_items_indices], key=lambda x: (-x[2], -x[1]))
+                            for item_id in unrated_items_indices], key=lambda x: (-x[1], -x[2]))
 
         recommended_items = [item_id for item_id, _, _ in top_items]
 
         if Sex[user_id] == 0:  # male user
 
-            #filter_items = list(set(recommended_items).intersection(set(female_itemids)))
-
-            # R1: .58
             filter_items = [item_id for item_id in female_itemids if item_id in recommended_items]
-
-            # R2: .75
-            # filter_long = [item_id for item_id in female_itemids if item_id in long_tail_items]
-            # filter_items = [item_id for item_id in filter_long if item_id in recommended_items]
-            # -- R2
-
-            #print(len(filter_long))
-
             print(f"male {user_id}: {len(filter_items)}")
-            # print(len(filter_items))
+            
         else:  # female user
-            #filter_items = list(set(recommended_items).intersection(set(male_itemids)))
-
-            # R1:
-            filter_items = [item_id for item_id in male_itemids if item_id in recommended_items] #- .58
-
-            # R2
-            # filter_long = [item_id for item_id in male_itemids if item_id in long_tail_items]
-            # filter_items = [item_id for item_id in filter_long if item_id in recommended_items]
-            # --
-
-            #print(len(filter_long))
-
+            
+            filter_items = [item_id for item_id in male_itemids if item_id in recommended_items] 
             print(f"female {user_id}: {len(filter_items)}")
-            # print(len(filter_items))
-
+        
         personalized_recommendations[user_id] = filter_items[:top_n]  # Limit to top_n items
 
-    # Step 8: Save personalized items list to JSON file
     with open(output_file + 'combine_personalized_recommendations_top' + str(top_n) + '.json', 'w') as f:
         json.dump(personalized_recommendations, f, cls=NumpyEncoder)
 
@@ -260,11 +223,11 @@ def knn_impute_and_recommend(data):
 import timeit
 start = timeit.default_timer()
 
-data = 'yahoo'
+data = '1m'
 # Call the function
 imputed_matrix, recommendations = knn_impute_and_recommend(data)
 
-#find_item_cat(data)
+# find_item_cat(data)
 
 stop = timeit.default_timer()
 print('Time: ', stop - start)
