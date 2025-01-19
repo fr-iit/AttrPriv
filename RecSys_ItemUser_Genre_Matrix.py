@@ -42,36 +42,20 @@ def Item_Genre_Matrix(data):
             if gen in genres:
                 itemgen_matrix.at[row['movieId'], gen] = 1
 
-    # Save the item-genre matrix to a .dat file using '::' as the delimiter (you can change the delimiter as needed)
-
     itemgen_matrix.to_csv(path+'Item_Genre_Matrix.dat', sep=',', header=True, index=True)
 
     return itemgen_matrix, path, user_item_matrix
 
 
 def User_Genre_Preference(item_genre_matrix, path, rating_matrix):
-    # Load data
-    # if data == '1m':
-    #     # path = 'ml-1m/'
-    #     user_item_matrix = DL.load_user_item_matrix_1m()
-    # elif data == '100k':
-    #     # path = 'ml-100k/'
-    #     user_item_matrix = DL.load_user_item_matrix_100k()
-    # elif data == 'yahoo':
-    #     # path = ''
-    #     user_item_matrix = DL.load_user_item_matrix_yahoo()
 
-    # Assuming this function loads a user-item rating matrix
     user_item_matrix = rating_matrix
     num_users = user_item_matrix.shape[0]
 
-    # Create dictionaries to store preferences and counts
     user_genre_pref_dict = {}
     user_genre_count_dict = {}
 
     for user_id in range(num_users):
-        # if user_id ==5:
-        #     break
         user_genre_pref_dict[user_id] = {genre: 0.0 for genre in genres}
         user_genre_count_dict[user_id] = {genre: 0 for genre in genres}
 
@@ -111,12 +95,10 @@ def User_Genre_Preference(item_genre_matrix, path, rating_matrix):
 
     # Convert dictionaries to DataFrames
     user_genre_matrix = pd.DataFrame.from_dict(user_genre_pref_dict, orient='index')
-    # user_genre_count = pd.DataFrame.from_dict(user_genre_count_dict, orient='index')
     print(user_genre_matrix)
 
     # Save the matrices
     user_genre_matrix.to_csv(path+'user_genre_matrix_round.dat', sep=',', header=True, index=True)
-    # user_genre_count.to_csv('ml-1m/user_genre_count.dat', sep=',', header=True, index=True)
 
     return user_genre_matrix, 0#user_genre_count
 
