@@ -1,4 +1,4 @@
-import Classifiers
+import RecSys_Classifiers as Classifiers
 import RecSys_Utils as Utils
 import numpy as np
 import RecSys_DataLoader as DL
