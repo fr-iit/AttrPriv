@@ -1,6 +1,3 @@
-## when we do imputation (file: FancyImpute_KNN.py--> KNN --> PerBlur_few_observed_entries.py)
-
-# from __future__ import absolute_import, print_function, division
 import time
 import RecSys_DataLoader as DL
 import numpy as np
