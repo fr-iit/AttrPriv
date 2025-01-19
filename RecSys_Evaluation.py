@@ -17,39 +17,6 @@ def mae(predictions, test_matrix):
 
     return mae
 
-# def calculate_mae(test_matrix, P, Q):
-#
-#     # Check if test_matrix dimensions match P and Q
-#     num_users, num_items = test_matrix.shape
-#     if num_users > P.shape[0] or num_items > Q.shape[0]:
-#         test_matrix = test_matrix[:P.shape[0], :Q.shape[0]]
-#
-#     predictions = P @ Q.T  # predictions is a NumPy array with shape (6040, 3952)
-#
-#     # Extract non-zero entries from the test matrix
-#     row_indices, col_indices = test_matrix.nonzero()
-#
-#     # Debug: Check maximum indices
-#     max_row_index = np.max(row_indices)
-#     max_col_index = np.max(col_indices)
-#     # print(f"Max row index: {max_row_index}, Max col index: {max_col_index}")
-#     # print(f"Predictions shape: {predictions.shape}")
-#
-#     # Ensure indices are within bounds
-#     assert max_row_index < predictions.shape[0], "Row index out of bounds"
-#     assert max_col_index < predictions.shape[1], "Column index out of bounds"
-#
-#     # Get the actual test ratings
-#     test_values = test_matrix[row_indices, col_indices].A1  # Convert to 1D array using .A1
-#
-#     # Predict ratings for the corresponding user-item pairs
-#     predicted_values = predictions[row_indices, col_indices]
-#
-#     # Calculate the mean absolute error
-#     mae = np.mean(np.abs(test_values - predicted_values))
-#
-#     return mae
-
 def calculate_mae(test_matrix, predict_func):
 
     row_indices, col_indices = test_matrix.nonzero()
@@ -57,6 +24,21 @@ def calculate_mae(test_matrix, predict_func):
     predicted_ratings = predict_func(row_indices, col_indices)
     mae = np.mean(np.abs(actual_ratings - predicted_ratings))
     return mae
+
+def calculate_normalized_mae(R_test, predictions, min_rating = 1, max_rating = 5):
+
+    # Extract non-zero test ratings and corresponding predictions
+    test_indices = R_test.nonzero()
+    true_ratings = R_test[test_indices]
+    predicted_ratings = predictions[test_indices]
+
+    # Calculate MAE
+    mae = np.mean(np.abs(true_ratings - predicted_ratings))
+
+    # Normalize MAE
+    nmae = mae / (max_rating - min_rating)
+
+    return nmae
 
 
 def calculate_rmse(test_matrix, P, Q):
@@ -72,11 +54,8 @@ def calculate_rmse(test_matrix, P, Q):
     # Extract non-zero entries from the test matrix
     row_indices, col_indices = test_matrix.nonzero()
 
-    # Debug: Check maximum indices
     max_row_index = np.max(row_indices)
     max_col_index = np.max(col_indices)
-    # print(f"Max row index: {max_row_index}, Max col index: {max_col_index}")
-    # print(f"Predictions shape: {predictions.shape}")
 
     # Ensure indices are within bounds
     assert max_row_index < predictions.shape[0], "Row index out of bounds"
@@ -93,69 +72,8 @@ def calculate_rmse(test_matrix, P, Q):
 
     return rmse
 
-
-def calculate_topk_mae(test_matrix, P, Q, top_k):
-
-    # Check if test_matrix dimensions match P and Q
-    num_users, num_items = test_matrix.shape
-    if num_users > P.shape[0] or num_items > Q.shape[0]:
-        test_matrix = test_matrix[:P.shape[0], :Q.shape[0]]
-
-    predictions = P @ Q.T  # Generate all predictions (shape: num_users x num_items)
-
-    total_absolute_error = 0
-    total_count = 0
-
-    for u in range(num_users):
-        # Get the actual ratings for the user
-        rated_items = test_matrix[u, :].nonzero()[1]
-
-        if len(rated_items) == 0:
-            continue  # Skip users with no ratings in the test set
-
-        # Get predicted scores for all items for this user
-        user_scores = predictions[u, :]
-
-        # Get the Top-K items with the highest predicted scores
-        top_k_items = np.argsort(user_scores)[-top_k:]
-
-        # Intersect Top-K items with the user's actual rated items
-        relevant_items = np.intersect1d(rated_items, top_k_items)
-
-        # Skip if no relevant items are in the top recommendations
-        if len(relevant_items) == 0:
-            continue
-
-        # Get the actual and predicted ratings for the relevant items
-        # Use .toarray() to convert sparse matrix rows to dense format
-        actual_ratings = test_matrix[u, relevant_items].toarray().flatten()
-        predicted_ratings = predictions[u, relevant_items]
-
-        # Calculate absolute error for this user
-        absolute_errors = np.abs(actual_ratings - predicted_ratings)
-        total_absolute_error += np.sum(absolute_errors)
-        total_count += len(relevant_items)
-
-    # Calculate MAE (handle case where total_count is 0)
-    mae = total_absolute_error / total_count if total_count > 0 else 0
-
-    return mae
-
-
-
 def calculate_nDCG_at_k(scores, relevant_index, k=10):
-    """
-    Calculate nDCG@k for a set of scores.
 
-    Parameters:
-    - scores: Array of predicted scores for 1 relevant item + random non-relevant items.
-    - relevant_index: The index of the relevant item in the scores array.
-    - k: The cutoff for the top-k items.
-
-    Returns:
-    - nDCG: Normalized Discounted Cumulative Gain at k.
-    """
-    # Sort scores in descending order and get the ranking
     ranking = np.argsort(scores)[::-1][:k]
 
     # Check if the relevant item is within the top-k
@@ -211,9 +129,7 @@ def evaluate_1_plus_random_nDCG(R_train, R_test, P, Q, top_k):
     return avg_nDCG_at_k
 
 def calculate_hit_ratio(R, predicted_R, top_k):
-    """
-    Calculate the Hit Ratio @ k.
-    """
+ 
     hit_count = 0
     num_users = R.shape[0]
 
@@ -230,10 +146,7 @@ def calculate_hit_ratio(R, predicted_R, top_k):
     return hit_ratio_at_k
 
 def evaluate_hit_rate_and_popularity(R_train, R_test, P, Q, top_k=10):
-    """
-    Evaluate the hit rate, average popularity, and other metrics.
-    """
-    #num_users, num_items = R_train.shape
+ 
     num_users = R_test.shape[0]  # R_train.shape
     num_items = R_train.shape[1]
     hit_count = 0
@@ -282,17 +195,7 @@ def evaluate_hit_rate_and_popularity(R_train, R_test, P, Q, top_k=10):
 
 # popular & long tail item ratio
 def categorize_items_by_popularity(item_popularity, popular_threshold=0.8):
-    """
-    Categorize items into popular and long-tail based on their popularity.
-
-    Parameters:
-    - item_popularity: Array containing the interaction counts of each item.
-    - popular_threshold: The fraction of items to consider as popular (e.g., 0.8 means top 20% are popular).
-
-    Returns:
-    - popular_items: Set of indices of popular items.
-    - long_tail_items: Set of indices of long-tail items.
-    """
+    
     popularity_threshold = np.percentile(item_popularity[item_popularity > 0], 100 * (1 - popular_threshold))
     popular_items = set(np.where(item_popularity >= popularity_threshold)[0])
     long_tail_items = set(np.where(item_popularity < popularity_threshold)[0])
@@ -301,9 +204,7 @@ def categorize_items_by_popularity(item_popularity, popular_threshold=0.8):
 
 
 def evaluate_hit_rate_and_popularity_with_distribution(R_train, R_test, P, Q, top_k=10):
-    """
-    Evaluate the hit rate, average popularity, and distribution of popular and long-tail items.
-    """
+    
     num_users, num_items = R_train.shape
     hit_count = 0
     total_recommended_items = 0
@@ -346,6 +247,5 @@ def evaluate_hit_rate_and_popularity_with_distribution(R_train, R_test, P, Q, to
     popular_ratio = popular_count / total_recommended_items if total_recommended_items > 0 else 0
     long_tail_ratio = long_tail_count / total_recommended_items if total_recommended_items > 0 else 0
 
-    #print(f"popular_ratio: {popular_ratio}, long_tail_ratio: {long_tail_ratio}")
     return hr_at_k, avg_popularity, avg_popularity_diff
 
